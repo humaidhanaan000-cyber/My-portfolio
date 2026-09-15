@@ -208,3 +208,147 @@ Whatever you choose, the fixed order is: publish code → provision database →
 set secrets (`AUTH_SECRET`, `APP_URL`, `COOKIE_SECURE=true`) → start web +
 worker + scheduler → check `/api/health` → register the first account and change
 the admin password → then work through `docs/LAUNCH_CHECKLIST.md`.
+
+---
+
+## 7. Seven more ways to open the console in a browser
+
+Every method below runs the real application (no mockup). They differ in *where*
+the Node processes and the database live. "Fully autonomous" means the worker and
+scheduler keep running 24/7; the others run while the machine or session is alive.
+
+| # | Method | Where it runs | Browser address | Needs installing something? | Fully autonomous |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Start file on your PC (`start-aiba.bat/.command/.sh`) | your computer | `http://localhost:3000` | Node.js 22 | ⏸ while the PC is on |
+| 2 | Docker Desktop / Compose | your computer | `http://localhost:3000` | Docker Desktop | ⏸ while the PC is on |
+| 3 | **LAN / phone on the same Wi-Fi** | your computer | `http://<pc-ip>:3000` | Node.js 22 | ⏸ while the PC is on |
+| 4 | **Temporary public link (Cloudflare Tunnel)** | your computer | `https://<random>.trycloudflare.com` | Node.js + cloudflared | ⏸ while the PC is on |
+| 5 | **GitHub Codespaces** | GitHub cloud | Codespaces "Ports → Open in browser" URL | nothing | ⏸ while the Codespace runs |
+| 6 | **Google Cloud Shell** | Google cloud | Cloud Shell "Web preview" URL | nothing (Google account) | ⏸ while the session runs |
+| 7 | **Replit** | Replit cloud | Replit webview URL | nothing | ⏸ (free tier sleeps) |
+| 8 | VPS + Docker Compose (§1) / Render (§2) / Railway / Fly (§3) | cloud | your own `https://` domain | nothing locally | ✅ 24/7 |
+
+---
+
+### Method 3 — open it from your phone on the same Wi-Fi
+
+The app already listens on `0.0.0.0`, so any device on your network can reach it.
+
+1. Start it on the computer: `npm run agent` (or the start file).
+2. Find the computer's local IP:
+   - Windows: `ipconfig` → *IPv4 Address* (e.g. `192.168.1.24`)
+   - macOS: `ipconfig getifaddr en0`
+   - Linux: `hostname -I`
+3. On the phone, open `http://192.168.1.24:3000` in the browser.
+
+If it does not load, allow the port through the firewall:
+
+```powershell
+# Windows (admin PowerShell), only for the local network
+netsh advfirewall firewall add rule name="AIBA 3000" dir=in action=allow protocol=TCP localport=3000
+```
+
+```bash
+# Linux
+sudo ufw allow 3000/tcp        # remove it again when you are done testing
+```
+
+Keep `COOKIE_SECURE=false` for plain `http://` (that is the default), and add your
+own values; on a phone the dashboard is usable, and the layout switches to the
+mobile drawer below `lg`.
+
+### Method 4 — a temporary public link, without renting a server
+
+Cloudflare Tunnel gives you a real `https://…` address pointing at the app on your
+own computer — free, no account needed for a quick tunnel. Handy for showing the
+console to someone else today.
+
+```bash
+# 1. install the tunnel client (once)
+#    macOS:  brew install cloudflared
+#    Linux:  https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+#    Windows: winget install --id Cloudflare.cloudflared
+
+# 2. start AIBA
+npm run agent
+
+# 3. in a second terminal, start the tunnel
+cloudflared tunnel --url http://localhost:3000
+```
+
+cloudflared prints a URL like `https://random-words-1234.trycloudflare.com`. Open
+it in any browser (also on your phone). Set `APP_URL` to that URL so email links
+and redirects point at the right place, and keep `COOKIE_SECURE=true` because the
+tunnel is https.
+
+The same idea with other tools: `ngrok http 3000`, or `npx localtunnel --port 3000`.
+
+Honest caveats: the link exists only while both processes run, the URL changes on
+every restart (a named Cloudflare tunnel or ngrok domain is fixed but needs an
+account), and anyone who has the link can reach the login page — so keep
+registration closed (`ALLOW_REGISTRATION=false`) if you share it.
+
+### Method 5 — GitHub Codespaces (runs in the cloud, nothing installed locally)
+
+1. Open the repository on GitHub → green **Code** button → **Codespaces** tab →
+   **Create codespace on main**.
+2. When the editor opens, run in its terminal:
+
+   ```bash
+   npm install
+   npm run agent
+   ```
+3. Open the **Ports** panel → find port **3000** → right-click → *Port Visibility*
+   → **Public** → then click the globe icon (*Open in Browser*).
+4. That forwarded URL is a normal https address you can open anywhere; sign in to
+   the app there.
+
+Notes: the Codespace pauses when you close it (free tier has a monthly hours
+allowance), the database lives on the Codespace disk so it persists across
+restarts of that same Codespace, and `APP_URL` should be set to the forwarded URL
+if you want working email links.
+
+### Method 6 — Google Cloud Shell (free, browser-only, and it has internet)
+
+Cloud Shell is a free browser terminal with a public web-preview proxy, which
+means the research sources and AI calls that are blocked in an offline sandbox
+will work here.
+
+1. Open <https://shell.cloud.google.com> (sign in with a Google account).
+2. Clone and start on the proxied port:
+
+   ```bash
+   git clone https://github.com/humaidhanaan000-cyber/My-portfolio.git aiba
+   cd aiba && npm install
+   PORT=8080 npm run agent
+   ```
+3. Click the **Web preview** icon in the Cloud Shell toolbar → *Change port* →
+   **8080** → *Change and preview*. The app opens in a new tab at a
+   `https://8080-cs-….cloudshell.dev` address.
+
+Notes: keep the Cloud Shell tab open (sessions idle-timeout and the VM is
+recycled after ~20 idle minutes), so treat it as a demo/handover environment
+rather than a production host. Same `APP_URL`/`COOKIE_SECURE=true` advice as above.
+
+### Method 7 — Replit (cloud, browser-only)
+
+1. <https://replit.com> → **Create** → **Import from GitHub** → paste
+   `https://github.com/humaidhanaan000-cyber/My-portfolio`.
+2. In the imported repl's shell: `npm install && npm run agent`.
+3. Replit's webview opens on port 3000 (set it in the repl's *Webview* settings if
+   it does not). Use the repl's public URL to open the console from any browser.
+
+Notes: the free tier sleeps when idle, which pauses the scheduler; PGlite keeps
+the data on the repl's disk.
+
+### Method 8 — the permanent options (repeat, because they are the real answer)
+
+If the goal is "a link I can open on any device, at any time, with the agents
+actually running while my PC is off", only these do it:
+
+- **VPS + Docker Compose** (§1) — full control, ~€5/month, your own domain.
+- **Render Blueprint** (`render.yaml`, §2) — no server administration.
+- **Railway / Fly.io** (§3) — same image, different host.
+
+Everything in methods 1–7 stops when the machine or session stops. That is a
+property of where the code runs, not a limitation of this application.
