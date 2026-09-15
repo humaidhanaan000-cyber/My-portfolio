@@ -317,6 +317,10 @@ export async function systemStatus(workspaceId: string): Promise<SystemStatus> {
   else if (queue.dead > 0 || workerCount === 0) status = 'DEGRADED'
 
   if (status === 'DEGRADED' && workerCount === 0) {
+    // Alerting is best-effort: a failure to record the alert must never take
+    // down the status endpoint (or crash the process with an unhandled
+    // rejection) while the database is degraded — which is exactly when this
+    // alert fires.
     void raiseAlert({
       workspaceId,
       type: 'no_workers',
@@ -324,6 +328,8 @@ export async function systemStatus(workspaceId: string): Promise<SystemStatus> {
       title: 'No worker heartbeat detected',
       message: 'Background automation is not running. Start the worker process (npm run worker) or deploy the worker container.',
       source: 'orchestrator',
+    }).catch((error: unknown) => {
+      log.warn('failed to raise no_workers alert', { error: error instanceof Error ? error.message : String(error) })
     })
   }
 

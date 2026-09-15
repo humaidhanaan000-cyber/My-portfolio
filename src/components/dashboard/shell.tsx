@@ -10,8 +10,8 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Activity, AlertTriangle, BarChart3, BellRing, Boxes, Brain, CircleDollarSign, ClipboardCheck,
-  Cpu, FileBarChart, Gauge, LayoutDashboard, Lightbulb, ListChecks, LogOut, Menu, Plug, Receipt,
-  Settings, ShieldCheck, Workflow, X,
+  Cpu, FileBarChart, Gauge, History, LayoutDashboard, Lightbulb, ListChecks, LogOut, Menu, Plug, Receipt,
+  Settings, ShieldCheck, Users, Workflow, X,
 } from 'lucide-react'
 import { Badge, Button, DemoBadge } from '@/components/ui'
 import { api, ApiClientError } from '@/lib/client/api'
@@ -55,9 +55,11 @@ const NAV: { href: string; label: string; icon: typeof LayoutDashboard; group: s
   { href: '/dashboard/budget', label: 'Budget limits', icon: Gauge, group: 'Money' },
   { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, group: 'Money' },
   { href: '/dashboard/reports', label: 'Reports', icon: FileBarChart, group: 'Money' },
+  { href: '/dashboard/timeline', label: 'Timeline', icon: History, group: 'Automation' },
   { href: '/dashboard/notifications', label: 'Notifications', icon: BellRing, group: 'Account' },
   { href: '/dashboard/billing', label: 'Plan & billing', icon: ShieldCheck, group: 'Account' },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings, group: 'Account' },
+  { href: '/dashboard/users', label: 'Account & team', icon: Users, group: 'Account' },
 ]
 
 const ADMIN_NAV = [

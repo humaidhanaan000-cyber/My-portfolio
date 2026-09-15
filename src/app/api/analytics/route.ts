@@ -6,7 +6,7 @@
  * carries its label.
  */
 import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm'
-import { getDb, agents as agentsTable, analyticsEvents, opportunities, projects, revenueTransactions } from '@/lib/db'
+import { extractRows, getDb, agents as agentsTable, analyticsEvents, opportunities, projects, revenueTransactions } from '@/lib/db'
 import { ok, withApi } from '@/lib/api/http'
 import {
   agentPerformance,
@@ -96,6 +96,10 @@ export const GET = withApi(async (ctx) => {
 
   return ok({
     window: { days, since: since.toISOString() },
+    // Which ledger these figures describe. The client renders this label, so a
+    // demo view can never be mistaken for real trading figures.
+    scope: demoView ? ('demo' as const) : ('real' as const),
+    scopeLabel: demoView ? 'DEMO DATA' : 'REAL DATA — demo rows excluded',
     financial,
     business,
     opportunityEngine,
@@ -119,9 +123,12 @@ export const GET = withApi(async (ctx) => {
       eventsByType: eventsByType.map((row) => ({ type: row.type, count: Number(row.value) })),
       revenueByDemo: demoSeries.map((row) => ({ demo: row.demo, totalCents: Number(row.value) })),
     },
+    // Null in the demo view on purpose: when every figure already describes demo
+    // rows, repeating them under a second heading would be misleading.
     demoSummary: demoFinance
       ? {
           label: 'DEMO DATA' as const,
+          comparableRealRevenueCents: financial.allTime.revenue,
           revenueCents: demoFinance.allTime.revenue,
           expensesCents: demoFinance.allTime.expenses,
           profitCents: demoFinance.allTime.profit,
@@ -139,8 +146,11 @@ export const GET = withApi(async (ctx) => {
   })
 })
 
-function asRows(result: unknown): Record<string, string>[] {
-  if (Array.isArray(result)) return result as Record<string, string>[]
-  const maybe = result as { rows?: unknown[] }
-  return (maybe.rows ?? []) as Record<string, string>[]
-}
+/**
+ * Row normalisation lives in the database layer (`extractRows`) because every
+ * driver returns results differently: node-postgres returns `{ rows }`, PGlite
+ * returns a bare array, and a deliberately skipped query in this route is
+ * `null`. All three are handled there, so a demo-mode request cannot fail where
+ * the equivalent real-data request succeeds.
+ */
+const asRows = extractRows<Record<string, string>>

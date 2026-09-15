@@ -157,6 +157,32 @@ export function extractRows<T>(result: unknown): T[] {
 export { schema }
 export * from './schema'
 
+/**
+ * Multi-process guard.
+ *
+ * The embedded PGlite driver keeps its pages in the memory of the process that
+ * opened it and writes them to a directory. Two long-running processes sharing
+ * that directory therefore see different data, and concurrent writes can corrupt
+ * the store. The web process alone is fine (jobs run inline when
+ * ENABLE_INLINE_JOBS is true), but standalone worker/scheduler processes must use
+ * PostgreSQL. Returns a human-readable reason when that rule is violated.
+ */
+export function multiProcessDriverProblem(role: string): string | null {
+  if (databaseDriver() !== 'pglite') return null
+  if (process.env.ALLOW_PGLITE_MULTI_PROCESS === 'true') return null
+  return [
+    `${role} cannot run against the embedded PGlite driver (DATABASE_URL=${env.DATABASE_URL}).`,
+    'PGlite keeps its data in the memory of a single process: separate worker/scheduler',
+    'processes would see stale data and risk corrupting the store.',
+    'Use PostgreSQL for a always-on worker:  DATABASE_URL=postgres://user:pass@host:5432/aiba',
+    'Or keep everything in one process: run the web app with ENABLE_INLINE_JOBS=true',
+    '(queued jobs execute inside the web process) and trigger runs with the CLI:',
+    '  npm run cli -- run research      # one agent now',
+    '  npm run cli -- cycle             # full discover → score → strategy loop',
+    'Override only for throwaway experiments: ALLOW_PGLITE_MULTI_PROCESS=true',
+  ].join('\n  ')
+}
+
 /** Prevent accidental use of the PGlite/SQLite-style file driver in production. */
 if (isProduction && databaseDriver() === 'pglite') {
   console.warn(

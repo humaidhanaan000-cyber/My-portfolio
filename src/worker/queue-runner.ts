@@ -13,7 +13,7 @@
  * not require the worker: user-triggered actions can run inline. The worker is
  * what makes automation continuous after the operator closes their laptop.
  */
-import { closeDb, getDb, workerHeartbeats } from '../lib/db'
+import { closeDb, getDb, multiProcessDriverProblem, workerHeartbeats } from '../lib/db'
 import { env } from '../lib/env'
 import { createLogger } from '../lib/observability/logger'
 import { claimJob, queueStats, requeueStalledJobs, runJob, registeredHandlers, hasHandler } from '../lib/queue'
@@ -31,6 +31,15 @@ let errors = 0
 let currentJobId: string | null = null
 
 registerAllHandlers()
+
+// Refuse to run as a second process against the embedded driver: it would see
+// stale rows and could corrupt the store (see multiProcessDriverProblem).
+const driverProblem = multiProcessDriverProblem('Worker')
+if (driverProblem) {
+  log.error('worker cannot start with this database driver')
+  console.error(`\n  ${driverProblem}\n`)
+  process.exit(1)
+}
 
 async function heartbeat(status: 'online' | 'degraded' | 'offline' = 'online') {
   try {
@@ -133,9 +142,23 @@ async function loop() {
   log.info('worker stopped', { processed, errors })
 }
 
+/** Bounded grace before the process is forced down. See shutdown(). */
+const shutdownGraceMs = Number(process.env.WORKER_SHUTDOWN_GRACE_MS ?? 25_000)
+
 async function shutdown(signal: string) {
-  log.info('shutdown signal received', { signal, currentJobId })
+  log.info('shutdown signal received', { signal, currentJobId, graceMs: shutdownGraceMs })
   running = false
+
+  // Nothing below is guaranteed to return: a stuck query, a driver close or a
+  // log flush can hang. An orphaned worker is worse than an abrupt exit — it
+  // keeps its own copy of the database in memory and can overwrite the shared
+  // store — so the process must always die within the grace period.
+  const force = setTimeout(() => {
+    log.error('shutdown did not finish in time — forcing exit so no orphaned worker keeps the database open')
+    process.exit(0)
+  }, shutdownGraceMs)
+  force.unref()
+
   // Give the in-flight job a moment to finish, then exit cleanly.
   const started = Date.now()
   while (currentJobId && Date.now() - started < 20_000) {
