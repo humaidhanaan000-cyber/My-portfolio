@@ -1,0 +1,61 @@
+{
+  "name": "aiba",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AIBA \u2014 Autonomous Internet Business Agent. An autonomous business opportunity discovery, analysis, execution and monitoring platform.",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p ${PORT:-3000}",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "agent": "tsx scripts/agent.ts",
+    "agent:dev": "tsx scripts/agent.ts --dev",
+    "agent:jobs": "tsx scripts/agent.ts --no-web",
+    "typecheck": "tsc --noEmit",
+    "worker": "tsx src/worker/queue-runner.ts",
+    "scheduler": "tsx src/worker/scheduler.ts",
+    "worker:all": "tsx src/worker/queue-runner.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:reset": "tsx scripts/reset.ts",
+    "db:setup": "npm run db:migrate && npm run db:seed",
+    "cli": "tsx scripts/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "tsx --env-file=.env.test scripts/e2e.ts",
+    "demo:seed": "tsx scripts/demo-seed.ts",
+    "verify": "npm run typecheck && npm run test",
+    "docs:schema": "tsx scripts/gen-schema-doc.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@electric-sql/pglite": "^0.5.8",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.2",
+    "ioredis": "^6.0.0",
+    "lucide-react": "^1.46.0",
+    "next": "^15.5.25",
+    "nodemailer": "^10.0.10",
+    "pg": "^8.23.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^22.10.0",
+    "@types/nodemailer": "^7.0.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "drizzle-kit": "^0.31.10",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.4"
+  }
+}

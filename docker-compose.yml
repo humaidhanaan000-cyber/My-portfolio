@@ -1,0 +1,147 @@
+# =============================================================================
+# AIBA — full stack
+#
+#   cp .env.example .env          # then set POSTGRES_PASSWORD + AUTH_SECRET
+#   docker compose up -d --build
+#   docker compose logs -f worker
+#   docker compose exec web npm run cli -- status
+#
+# Services
+#   postgres   relational store
+#   redis      job queue, rate limiting and scheduler leader lock
+#   web        Next.js server + REST API (applies migrations on start)
+#   worker     queue worker — runs agent jobs and executes workflows
+#   scheduler  cron scheduler — enqueues the recurring jobs once per tick
+#
+# Secrets come from `.env` (compose reads it automatically); none are written
+# into this file. The single-container alternative (embedded PGlite database and
+# in-process queue) is documented in docs/DEPLOYMENT.md.
+# =============================================================================
+
+name: aiba
+
+x-service: &service
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: aiba:1.0.0
+  restart: unless-stopped
+  env_file:
+    - .env
+  volumes:
+    - aiba-data:/data
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+x-database-url: &database-url postgres://aiba:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/aiba
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aiba
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: aiba
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiba -d aiba"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    expose:
+      - "5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "6379"
+
+  web:
+    <<: *service
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      DATABASE_URL: *database-url
+      REDIS_URL: redis://redis:6379
+      ENABLE_INLINE_JOBS: "false"
+      ENABLE_SCHEDULER: "false"
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      STORAGE_LOCAL_DIR: /data/storage
+      EMAIL_OUTBOX_DIR: /data/mail-outbox
+      RUN_MIGRATIONS: "true"
+      SEED_ON_START: ${SEED_ON_START:-true}
+    ports:
+      - "${PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    command: ["node", "server.js"]
+
+  worker:
+    <<: *service
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: *database-url
+      REDIS_URL: redis://redis:6379
+      ENABLE_INLINE_JOBS: "false"
+      ENABLE_SCHEDULER: "false"
+      WORKER_ID: worker-1
+      STORAGE_LOCAL_DIR: /data/storage
+      EMAIL_OUTBOX_DIR: /data/mail-outbox
+      RUN_MIGRATIONS: "false"
+    command: ["npm", "run", "worker"]
+    stop_grace_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+  scheduler:
+    <<: *service
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: *database-url
+      REDIS_URL: redis://redis:6379
+      ENABLE_INLINE_JOBS: "false"
+      ENABLE_SCHEDULER: "true"
+      WORKER_ID: scheduler-1
+      STORAGE_LOCAL_DIR: /data/storage
+      EMAIL_OUTBOX_DIR: /data/mail-outbox
+      RUN_MIGRATIONS: "false"
+    command: ["npm", "run", "scheduler"]
+    stop_grace_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  postgres-data:
+  redis-data:
+  aiba-data:
