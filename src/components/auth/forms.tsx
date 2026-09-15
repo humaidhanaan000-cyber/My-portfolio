@@ -18,6 +18,32 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong. Try again.'
 }
 
+/**
+ * Confirm the browser actually kept the session cookie.
+ *
+ * A successful `POST /api/auth/login` only means the server created a session; it
+ * still has to be *stored*. Browsers silently discard cookies when the page runs
+ * inside a cross-site frame (SameSite=Lax), when third-party cookies are blocked
+ * (Safari, Brave, Chrome with blocking enabled) or when the cookie is marked
+ * Secure but the page is served over plain http. In that case the very next page
+ * load is anonymous and the user is bounced back to the sign-in page with no
+ * explanation — which looks exactly like "my password does not work".
+ *
+ * So: ask the server who we are. If there is no session, say plainly what
+ * happened and what to do about it, instead of looping.
+ */
+async function assertSessionStored(): Promise<void> {
+  const session = await api.get<{ user: { email: string } | null }>('/api/auth/session').catch(() => null)
+  if (session?.data?.user) return
+  throw new ApiClientError(
+    'Signed in, but this browser did not keep the session cookie, so the next page would ask you to sign in again. ' +
+      'This happens when the app is shown inside a frame or when third-party cookies are blocked. ' +
+      'Open the app in its own browser tab (or allow cookies for this site) and sign in again.',
+    'cookie_blocked',
+    0,
+  )
+}
+
 export function LoginForm({ nextPath }: { nextPath?: string }) {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -31,6 +57,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
     setError(null)
     try {
       const result = await api.post<{ user: { onboarded: boolean }; nextStep: string }>('/api/auth/login', { email, password })
+      await assertSessionStored()
       router.replace(nextPath && nextPath.startsWith('/') ? nextPath : result.data.nextStep ?? '/dashboard')
       router.refresh()
     } catch (caught) {
@@ -77,6 +104,7 @@ export function RegisterForm() {
         password: form.password,
         workspaceName: form.workspaceName || undefined,
       })
+      await assertSessionStored()
       router.replace('/onboarding')
       router.refresh()
     } catch (caught) {

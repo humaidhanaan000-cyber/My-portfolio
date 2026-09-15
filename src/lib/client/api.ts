@@ -9,7 +9,20 @@
  * message the server produced instead of a generic failure.
  */
 
-export const CSRF_COOKIE = 'aiba_csrf'
+/**
+ * Name of the CSRF double-submit cookie.
+ *
+ * It must match the server (`src/lib/security/crypto.ts`), which prefixes the name
+ * with `__Host-` when cookies are Secure. Reading the wrong name silently yields no
+ * token, and then every mutating request is rejected with `forbidden` — so both
+ * spellings are tried, and `/api/csrf` is asked for the value as a fallback: the
+ * server returns the token in the response body precisely so the client does not
+ * depend on being able to read the cookie itself (which is impossible for a
+ * partitioned cookie in some browsers, and for a `__Host-` cookie name that does
+ * not match the build-time constant).
+ */
+export const CSRF_COOKIE_NAMES = ['__Host-aiba_csrf', 'aiba_csrf'] as const
+export const CSRF_COOKIE = CSRF_COOKIE_NAMES[1]
 
 export type ApiEnvelope<T> = { data: T; meta?: Record<string, unknown> }
 export type ApiErrorBody = { error: { code: string; message: string; details?: unknown } }
@@ -47,15 +60,18 @@ export async function apiFetch<T>(
 
   const headers: Record<string, string> = { accept: 'application/json' }
   if (options.body !== undefined) headers['content-type'] = 'application/json'
-  if (method !== 'GET' && method !== 'HEAD') {
-    const token = readCookie(CSRF_COOKIE)
-    if (token) headers['x-csrf-token'] = token
-  }
 
-  // Ensure a CSRF cookie exists before the first mutation.
-  if (method !== 'GET' && method !== 'HEAD' && !readCookie(CSRF_COOKIE)) {
-    await fetch('/api/csrf', { credentials: 'same-origin' }).catch(() => undefined)
-    const token = readCookie(CSRF_COOKIE)
+  // Every mutating request carries the double-submit token. Read it from the
+  // cookie when possible; otherwise ask the server, which returns the same value
+  // in the body of `/api/csrf`.
+  if (method !== 'GET' && method !== 'HEAD') {
+    let token = CSRF_COOKIE_NAMES.map((name) => readCookie(name)).find((value): value is string => Boolean(value)) ?? null
+    if (!token) {
+      const issued = await fetch('/api/csrf', { credentials: 'same-origin' })
+        .then((response) => (response.ok ? (response.json() as Promise<{ data?: { csrfToken?: string } }>) : null))
+        .catch(() => null)
+      token = issued?.data?.csrfToken ?? CSRF_COOKIE_NAMES.map((name) => readCookie(name)).find((value): value is string => Boolean(value)) ?? null
+    }
     if (token) headers['x-csrf-token'] = token
   }
 

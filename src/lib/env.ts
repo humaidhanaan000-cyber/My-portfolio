@@ -29,6 +29,21 @@ const schema = z.object({
   ALLOW_REGISTRATION: bool(true),
   REQUIRE_EMAIL_VERIFICATION: bool(false),
   COOKIE_SECURE: bool(false),
+  // Cross-site cookie policy for the session/CSRF cookies.
+  //   lax (default)  first-party use: the browser sends the cookie on top-level
+  //                  navigation, and blocks it inside third-party frames.
+  //   strict         most restrictive; the session cookie is not even sent when
+  //                  arriving from an external link.
+  //   none           required when the app is legitimately embedded in a frame on
+  //                  another site (hosted previews, white-label dashboards).
+  //                  Browsers only accept `none` together with `Secure`, which
+  //                  this code enforces automatically. CSRF protection then rests
+  //                  on the double-submit token every mutating request carries.
+  COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  // Allow the app to be embedded in a frame (drops X-Frame-Options and sets a
+  // frame-ancestors allow-list). Keep false unless the deployment needs framing.
+  ALLOW_EMBED: bool(false),
+  FRAME_ANCESTORS: z.string().default("'self' https://*.e2b.app https://*.arena.ai"),
 
   // Database — postgres:// URL, or `pglite://<dir>` for the embedded engine.
   DATABASE_URL: z.string().default('pglite://./data/pgdata'),

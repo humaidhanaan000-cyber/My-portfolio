@@ -10,7 +10,7 @@
  * - Enumeration: register/login/reset return identical shapes for unknown accounts.
  */
 import { and, eq, gt, isNull, sql } from 'drizzle-orm'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { getDb, authTokens, memberships, profiles, sessions, users, workspaces, auditLogs } from '../db'
 import { env, isProduction } from '../env'
 import { CSRF_COOKIE, SESSION_COOKIE, hashToken, randomToken } from '../security/crypto'
@@ -264,22 +264,56 @@ export async function createSessionRecord(userId: string, ip?: string, userAgent
   }
 }
 
+/**
+ * Cookie attributes for the session pair.
+ *
+ * Two deployment realities are handled here:
+ *   - behind a TLS-terminating proxy the app itself sees http, but the browser
+ *     sees https, so `Secure` is derived from `x-forwarded-proto` as well as from
+ *     COOKIE_SECURE. Getting this wrong is invisible until a browser silently
+ *     refuses to store the cookie.
+ *   - when the app is embedded in a frame on another site (hosted preview,
+ *     white-label console) browsers drop `SameSite=Lax` cookies entirely, so
+ *     sign-in appears to do nothing. COOKIE_SAMESITE=none switches to cross-site
+ *     cookies; browsers only accept that together with `Secure`, which is forced.
+ */
+export async function authCookieOptions(): Promise<{ secure: boolean; sameSite: 'lax' | 'strict' | 'none'; partitioned?: boolean }> {
+  const { secure, sameSite } = await sessionCookieOptions()
+  return sameSite === 'none' ? { secure, sameSite, partitioned: true } : { secure, sameSite }
+}
+
+async function sessionCookieOptions(): Promise<{ secure: boolean; sameSite: 'lax' | 'strict' | 'none' }> {
+  const sameSite = env.COOKIE_SAMESITE
+  if (sameSite === 'none') return { secure: true, sameSite }
+  const headerList = await headers()
+  const forwardedProto = headerList.get('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase()
+  const secure = env.COOKIE_SECURE || forwardedProto === 'https'
+  return { secure, sameSite }
+}
+
 /** Write the session + CSRF cookies for a freshly created session record. */
 export async function applySessionCookies(record: { token: string; csrfToken: string; expiresAt: Date }): Promise<void> {
   const cookieStore = await cookies()
+  const { secure, sameSite } = await sessionCookieOptions()
+  // `Partitioned` (CHIPS) is added with cross-site cookies: browsers that block
+  // third-party cookies outright still accept a partitioned one, scoped to the
+  // top-level site, which is exactly right for a legitimately embedded console.
+  const partitioned = sameSite === 'none' ? { partitioned: true } : {}
   cookieStore.set(SESSION_COOKIE, record.token, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: env.COOKIE_SECURE,
+    sameSite,
+    secure,
     path: '/',
     expires: record.expiresAt,
+    ...partitioned,
   })
   cookieStore.set(CSRF_COOKIE, record.csrfToken, {
     httpOnly: false, // double-submit pattern: the client reads this and echoes it in a header
-    sameSite: 'lax',
-    secure: env.COOKIE_SECURE,
+    sameSite,
+    secure,
     path: '/',
     expires: record.expiresAt,
+    ...partitioned,
   })
 }
 
@@ -360,8 +394,19 @@ export async function destroySession(): Promise<void> {
       .where(eq(sessions.tokenHash, hashToken(token)))
       .catch(() => undefined)
   }
-  cookieStore.delete(SESSION_COOKIE)
-  cookieStore.delete(CSRF_COOKIE)
+  // Delete with the same attributes that were used to set them, otherwise a
+  // browser (or an embedded frame) can keep presenting the stale cookie.
+  const { secure, sameSite } = await sessionCookieOptions()
+  for (const name of [SESSION_COOKIE, CSRF_COOKIE]) {
+    cookieStore.set(name, '', {
+      path: '/',
+      expires: new Date(0),
+      secure,
+      sameSite,
+      httpOnly: name === SESSION_COOKIE,
+      ...(sameSite === 'none' ? { partitioned: true } : {}),
+    })
+  }
 }
 
 export async function revokeAllSessions(userId: string): Promise<number> {
