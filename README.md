@@ -273,7 +273,10 @@ idle and why.
 
 ## Deploying to a server
 
-Full playbook: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. The short version:
+Full playbook: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**, and for the
+hosted-without-a-server route **[docs/PUBLISHING.md](docs/PUBLISHING.md)**
+(Render Blueprint, Railway, Fly.io, and the honest limits of Vercel). The short
+version:
 
 ```bash
 # on the server (Ubuntu 22.04+, Docker installed)
@@ -404,6 +407,7 @@ before-going-public steps.
 
 | File | Contents |
 | --- | --- |
+| [docs/PUBLISHING.md](docs/PUBLISHING.md) | How to get a public website link: GitHub → VPS / Render (`render.yaml`) / Railway / Fly / Vercel, and why GitHub Pages cannot host it |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Single-node and Docker deployment, TLS, backups, restore, rollback, scaling, troubleshooting |
 | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Every external service with credential, source, env var and test procedure |
 | [docs/SCHEMA.md](docs/SCHEMA.md) | Generated schema reference — 42 tables, 637 columns |

@@ -1,0 +1,206 @@
+# =============================================================================
+# Render Blueprint for AIBA
+#
+#   Push this repository to GitHub, then in Render:
+#     New +  →  Blueprint  →  pick this repository  →  Apply
+#
+#   It creates five resources:
+#     aiba-web        Next.js server + REST API (public, https, health-checked)
+#     aiba-worker     queue worker — runs the agent jobs and workflows
+#     aiba-scheduler  cron scheduler — enqueues the recurring jobs
+#     aiba-postgres   managed PostgreSQL
+#     aiba-redis      managed Key Value / Redis (queue locks, rate limits)
+#
+#   Secrets marked `sync: false` are asked for in the Render dashboard and never
+#   stored in this file. `APP_URL` must be set to the public URL Render gives the
+#   web service (e.g. https://aiba-web.onrender.com or your own domain).
+#
+#   Full walkthrough: docs/PUBLISHING.md
+# =============================================================================
+
+services:
+  # ------------------------------------------------------------- web / API
+  - type: web
+    name: aiba-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /api/health
+    # The web process must not run jobs itself when real workers exist.
+    envVars:
+      - fromGroup: aiba-shared
+      - key: ENABLE_INLINE_JOBS
+        value: "false"
+      - key: ENABLE_SCHEDULER
+        value: "false"
+      - key: RUN_MIGRATIONS
+        value: "true"
+      - key: SEED_ON_START
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aiba-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: aiba-redis
+          property: connectionString
+
+  # ---------------------------------------------------------------- worker
+  - type: worker
+    name: aiba-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: npm run worker
+    plan: starter
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    envVars:
+      - fromGroup: aiba-shared
+      - key: ENABLE_INLINE_JOBS
+        value: "false"
+      - key: ENABLE_SCHEDULER
+        value: "false"
+      - key: RUN_MIGRATIONS
+        value: "false"
+      - key: WORKER_ID
+        value: render-worker-1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aiba-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: aiba-redis
+          property: connectionString
+
+  # ------------------------------------------------------------- scheduler
+  # Exactly one instance: it owns the cron loop and holds the leader lock.
+  - type: worker
+    name: aiba-scheduler
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: npm run scheduler
+    plan: starter
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    envVars:
+      - fromGroup: aiba-shared
+      - key: ENABLE_INLINE_JOBS
+        value: "false"
+      - key: ENABLE_SCHEDULER
+        value: "true"
+      - key: RUN_MIGRATIONS
+        value: "false"
+      - key: WORKER_ID
+        value: render-scheduler-1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aiba-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: aiba-redis
+          property: connectionString
+
+  # ------------------------------------------------- redis / key value
+  # Newer Render dashboards call this service type "Key Value"; `redis` is the
+  # accepted blueprint name for the same resource.
+  - type: redis
+    name: aiba-redis
+    plan: starter
+    region: frankfurt
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+
+# ------------------------------------------------------------- postgres
+databases:
+  - name: aiba-postgres
+    databaseName: aiba
+    user: aiba
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "17"
+    ipAllowList: []
+
+# ------------------------------------------------- shared configuration
+envVarGroups:
+  - name: aiba-shared
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_NAME
+        value: AIBA
+      # Render generates a strong random value and keeps it secret.
+      - key: AUTH_SECRET
+        generateValue: true
+      # Set this to the public URL of aiba-web, e.g. https://aiba.example.com
+      - key: APP_URL
+        sync: false
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: lax
+      - key: ALLOW_EMBED
+        value: "false"
+      - key: REQUIRE_EMAIL_VERIFICATION
+        value: "false"
+      - key: ALLOW_REGISTRATION
+        value: "true"
+      - key: BUDGET_ENFORCEMENT
+        value: "true"
+      - key: MAX_DAILY_AI_SPEND_CENTS
+        value: "2000"
+      - key: LOG_LEVEL
+        value: info
+      # Assets: containers do not share a disk on Render, so point asset storage
+      # at S3 or an S3-compatible bucket (see docs/INTEGRATIONS.md §6). With the
+      # default `local` driver, generated files are ephemeral on redeploy.
+      - key: STORAGE_DRIVER
+        value: local
+      # ------------------------------------------------- optional integrations
+      # Fill these in the dashboard to switch features on. Leave a group of them
+      # empty and the app reports DEGRADED with the reason instead of guessing.
+      - key: AI_PROVIDER
+        value: auto
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: EMAIL_PROVIDER
+        value: file
+      - key: EMAIL_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: PAYMENT_PROVIDER
+        value: none
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false
+      - key: STRIPE_PRICE_BUSINESS
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
