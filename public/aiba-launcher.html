@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AIBA — Launcher</title>
+<meta name="description" content="One-click launcher for the AIBA autonomous business agent console." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f172a'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='14' font-weight='700' fill='%23fff' text-anchor='middle'%3EAI%3C/text%3E%3C/svg%3E" />
+<style>
+  /* ------------------------------------------------------------------------
+     Self-contained launcher. No external files, no CDN, no build step —
+     double-click it, or open it at /aiba-launcher.html while the app runs.
+     ------------------------------------------------------------------------ */
+  :root {
+    --ink-950:#080c14; --ink-900:#0f172a; --ink-800:#1b2437; --ink-700:#334155;
+    --ink-500:#64748b; --ink-300:#cbd5e1; --ink-100:#e8edf5; --paper:#f6f8fc;
+    --accent:#0d9488; --accent-soft:#14b8a6; --warn:#f59e0b; --bad:#ef4444; --good:#22c55e;
+    --radius:14px;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1100px 600px at 12% -10%, #14283c 0%, transparent 55%), var(--ink-950);
+    color: var(--ink-100); min-height:100vh; padding:28px 18px 56px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+
+  header { display:flex; align-items:center; gap:12px; margin-bottom:22px; flex-wrap:wrap; }
+  .logo { width:40px; height:40px; border-radius:11px; background:linear-gradient(160deg,#f8fafc,#cbd5e1); color:#0f172a;
+          display:grid; place-items:center; font-weight:800; font-size:15px; letter-spacing:-.5px; }
+  h1 { font-size:20px; margin:0; letter-spacing:-.3px; }
+  .sub { margin:2px 0 0; font-size:12.5px; color:var(--ink-500); }
+  .badge { margin-left:auto; font-size:11.5px; font-weight:600; padding:5px 10px; border-radius:999px;
+           border:1px solid var(--ink-800); background:var(--ink-900); color:var(--ink-300); white-space:nowrap; }
+
+  .card { background:var(--ink-900); border:1px solid var(--ink-800); border-radius:var(--radius); padding:20px; margin-bottom:16px; }
+  .card h2 { font-size:14px; margin:0 0 4px; letter-spacing:.2px; }
+  .card p.note { font-size:12.5px; color:var(--ink-500); margin:6px 0 14px; line-height:1.55; }
+
+  .status { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:11px;
+            background:var(--ink-950); border:1px solid var(--ink-800); margin-bottom:14px; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--ink-500); flex:none; }
+  .dot.ok { background:var(--good); box-shadow:0 0 0 4px rgba(34,197,94,.14); }
+  .dot.degraded { background:var(--warn); box-shadow:0 0 0 4px rgba(245,158,11,.14); }
+  .dot.off { background:var(--bad); box-shadow:0 0 0 4px rgba(239,68,68,.14); }
+  .status .label { font-size:13px; font-weight:600; }
+  .status .detail { font-size:11.5px; color:var(--ink-500); margin-top:2px; }
+  .status .right { margin-left:auto; }
+
+  .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); }
+  a.btn, button.btn {
+    display:flex; align-items:center; justify-content:center; gap:8px; text-decoration:none;
+    font:inherit; font-size:13px; font-weight:600; padding:12px 14px; border-radius:11px; cursor:pointer;
+    border:1px solid var(--ink-700); background:var(--ink-800); color:var(--ink-100); transition:transform .06s ease, filter .15s ease;
+  }
+  a.btn:hover, button.btn:hover { filter:brightness(1.14); }
+  a.btn:active, button.btn:active { transform:translateY(1px); }
+  a.btn.primary, button.btn.primary { background:linear-gradient(180deg,var(--accent-soft),var(--accent)); border-color:transparent; color:#04211f; }
+  a.btn.ghost { background:transparent; }
+  a.btn.small, button.btn.small { padding:8px 12px; font-size:12px; }
+
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input[type=url], input[type=text] {
+    flex:1 1 320px; min-width:0; font:inherit; font-size:13px; padding:11px 12px; border-radius:11px;
+    border:1px solid var(--ink-700); background:var(--ink-950); color:var(--ink-100);
+  }
+  input::placeholder { color:#5c6b82; }
+  code { background:var(--ink-950); border:1px solid var(--ink-800); padding:2px 6px; border-radius:7px; font-size:12px; }
+  pre { background:var(--ink-950); border:1px solid var(--ink-800); border-radius:11px; padding:12px 14px;
+        overflow:auto; font-size:12px; line-height:1.6; margin:10px 0 0; }
+
+  details { border-top:1px solid var(--ink-800); padding:12px 0 0; margin-top:14px; }
+  details:first-of-type { border-top:0; padding-top:0; margin-top:0; }
+  summary { cursor:pointer; font-size:13.5px; font-weight:600; }
+  summary::marker { color:var(--accent-soft); }
+  ol.steps { margin:10px 0 0; padding-left:20px; font-size:13px; line-height:1.75; color:var(--ink-300); }
+  ul.ticks { margin:8px 0 0; padding-left:18px; font-size:12.5px; line-height:1.7; color:var(--ink-300); }
+  .muted { color:var(--ink-500); font-size:12px; }
+  .pill { display:inline-block; font-size:11px; font-weight:600; padding:3px 8px; border-radius:999px;
+          border:1px solid var(--ink-700); background:var(--ink-950); color:var(--ink-300); margin-right:6px; }
+  footer { text-align:center; color:var(--ink-500); font-size:11.5px; margin-top:26px; line-height:1.7; }
+  .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--ink-800);
+           border:1px solid var(--ink-700); color:var(--ink-100); padding:10px 16px; border-radius:11px;
+           font-size:12.5px; opacity:0; pointer-events:none; transition:opacity .2s ease; }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">AI</div>
+    <div>
+      <h1>AIBA — Autonomous Internet Business Agent</h1>
+      <p class="sub">Launcher: opens the console, checks that it is running, and remembers your hosted URL.</p>
+    </div>
+    <span class="badge" id="clock">—</span>
+  </header>
+
+  <!-- ---------------------------------------------------------- local app -->
+  <section class="card">
+    <h2>1 · The app on this computer</h2>
+    <p class="note">
+      Local address: <code id="localUrl">http://localhost:3000</code>.
+      The console needs its server to be running — to start it, see section&nbsp;3 (one double-click).
+      If you are already viewing AIBA in a hosted preview, use section&nbsp;2 instead.
+    </p>
+
+    <div class="status">
+      <span class="dot" id="localDot"></span>
+      <div>
+        <div class="label" id="localLabel">Checking…</div>
+        <div class="detail" id="localDetail">Looking for a server on port 3000.</div>
+      </div>
+      <div class="right"><button class="btn small" id="recheck" type="button">Check again</button></div>
+    </div>
+
+    <div class="grid">
+      <a class="btn primary" id="openDash"  href="http://localhost:3000/dashboard">Open dashboard</a>
+      <a class="btn"         id="openLogin" href="http://localhost:3000/login">Sign in</a>
+      <a class="btn"         id="openReg"   href="http://localhost:3000/register">Create account</a>
+      <a class="btn"         id="openHome"  href="http://localhost:3000/">Landing page</a>
+      <a class="btn"         id="openDocs"  href="http://localhost:3000/api-docs">API documentation</a>
+      <a class="btn"         id="openStatus" href="http://localhost:3000/status">Public status</a>
+    </div>
+  </section>
+
+  <!-- -------------------------------------------------------- hosted app -->
+  <section class="card">
+    <h2>2 · A hosted copy (Arena preview, or your own server)</h2>
+    <p class="note">
+      Paste the address you were given — for example
+      <code>https://3000-xxxx.e2b.app</code> or <code>https://aiba.yourdomain.com</code>.
+      It is stored in this browser only, so you can reopen it with one click next time.
+    </p>
+    <div class="row">
+      <input type="url" id="remoteUrl" placeholder="https://your-aiba-address" autocomplete="off" spellcheck="false" />
+      <button class="btn primary" id="remoteOpen" type="button">Open</button>
+      <button class="btn" id="remoteSave" type="button">Save</button>
+      <button class="btn ghost small" id="remoteClear" type="button">Clear</button>
+    </div>
+    <pre id="remoteHint">Saved: nothing yet</pre>
+  </section>
+
+  <!-- --------------------------------------------------------- start app -->
+  <section class="card">
+    <h2>3 · Start the app (one double-click)</h2>
+    <p class="note">
+      In the project folder there are three start files. Use the one for your system — each of them
+      installs dependencies the first time, starts the web app together with the agents, waits until
+      the server answers, and then opens your browser by itself.
+    </p>
+
+    <details open>
+      <summary>Windows — <code>start-aiba.bat</code></summary>
+      <ol class="steps">
+        <li>Install Node.js 22 or newer once: <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>.</li>
+        <li>Open the project folder and double-click <code>start-aiba.bat</code>.</li>
+        <li>A black window opens with the server logs — leave it open; your browser opens automatically.</li>
+        <li>To stop the app, close that window (or press <code>Ctrl&nbsp;+&nbsp;C</code> in it).</li>
+      </ol>
+    </details>
+
+    <details>
+      <summary>macOS — <code>start-aiba.command</code></summary>
+      <ol class="steps">
+        <li>Double-click <code>start-aiba.command</code> in Finder.</li>
+        <li>The first time, macOS asks for permission — right-click → <em>Open</em> → <em>Open</em> confirms it.</li>
+        <li>A Terminal window shows the logs and your browser opens by itself. Close the window to stop.</li>
+      </ol>
+    </details>
+
+    <details>
+      <summary>Linux — <code>start-aiba.sh</code></summary>
+      <ol class="steps">
+        <li>Make it executable once: <code>chmod +x start-aiba.sh</code>.</li>
+        <li>Run <code>./start-aiba.sh</code> (double-click also works in most file managers).</li>
+        <li>Press <code>Ctrl&nbsp;+&nbsp;C</code> to stop.</li>
+      </ol>
+    </details>
+
+    <details>
+      <summary>Any system — the command line version</summary>
+      <pre>cd path/to/My-portfolio
+cp .env.example .env      # first time only; set AUTH_SECRET
+npm install               # first time only
+npm run agent             # builds, migrates, starts web + agents</pre>
+      <p class="muted" style="margin-top:10px">
+        Then open <code>http://localhost:3000</code>. With Docker instead:
+        <code>docker compose up -d --build</code>.
+      </p>
+    </details>
+  </section>
+
+  <!-- -------------------------------------------------------- what to do -->
+  <section class="card">
+    <h2>4 · First five minutes in the app</h2>
+    <ul class="ticks">
+      <li><span class="pill">1</span> Create an account, or sign in as the administrator.</li>
+      <li><span class="pill">2</span> Finish the five onboarding steps — profile, risk tolerance, budgets, monetisation, automation level (keep <em>approval required</em>).</li>
+      <li><span class="pill">3</span> <code>/dashboard/opportunities</code> → analyse one, then build a strategy.</li>
+      <li><span class="pill">4</span> <code>/dashboard/approvals</code> → approve it; the workflow then executes on its own.</li>
+      <li><span class="pill">5</span> <code>/dashboard/revenue</code> and <code>/dashboard/expenses</code> → add one manual entry each and watch net, margin and ROI update.</li>
+    </ul>
+    <p class="muted" style="margin-top:12px">
+      The dashboard reads <strong>DEGRADED</strong> until an AI provider key is configured; every job still
+      runs with the deterministic agents. Report and audit pages live under
+      <code>/dashboard/reports</code> and <code>/dashboard/admin</code>.
+    </p>
+  </section>
+
+  <footer>
+    This file is self-contained: no internet connection, no build step, no installation.
+    Keep it next to the project (or open <code>/aiba-launcher.html</code> from the running app).<br />
+    It never stores passwords — the hosted address is kept in this browser's local storage only.
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  (function () {
+    'use strict';
+    var LOCAL = 'http://localhost:3000';
+    var STORAGE_KEY = 'aiba.launcher.remoteUrl';
+    var $ = function (id) { return document.getElementById(id); };
+
+    /* ----------------------------------------------------------- helpers */
+    function toast(message) {
+      var el = $('toast');
+      el.textContent = message;
+      el.classList.add('show');
+      window.clearTimeout(toast._t);
+      toast._t = window.setTimeout(function () { el.classList.remove('show'); }, 2400);
+    }
+
+    function setBadge(state, label, detail) {
+      var dot = $('localDot');
+      dot.className = 'dot ' + (state === 'ok' ? 'ok' : state === 'degraded' ? 'degraded' : state === 'offline' ? 'off' : '');
+      $('localLabel').textContent = label;
+      $('localDetail').textContent = detail;
+    }
+
+    /* ------------------------------------------------- check the server */
+    /*
+     * Two-step probe, because a page opened from file:// cannot read a
+     * cross-origin JSON response:
+     *   1. an <img> request to/favicon.ico — allowed cross-origin, so a load or a
+     *      404 answer both prove the server is up, and a network error proves
+     *      it is down;
+     *   2. a normal fetch, which succeeds when this page is served by the app
+     *      itself (same origin) and gives the real status plus details.
+     */
+    function reachable(base) {
+      return new Promise(function (resolve) {
+        var img = new Image();
+        var done = false;
+        var finish = function (value) { if (!done) { done = true; resolve(value); } };
+        img.onload = function () { finish(true); };
+        img.onerror = function () { finish(true); }; // an HTTP error still means a server answered
+        img.src = base + '/favicon.ico?_=' + Date.now();
+        window.setTimeout(function () { finish(false); }, 4000);
+      });
+    }
+
+    function probe() {
+      setBadge('', 'Checking…', 'Looking for a server on port 3000.');
+      reachable(LOCAL).then(function (up) {
+        if (!up) {
+          setBadge('offline', 'Not running', 'Start it with the start file in section 3, then press “Check again”.');
+          return;
+        }
+        fetch(LOCAL + '/api/health', { cache: 'no-store' })
+          .then(function (response) { return response.json(); })
+          .then(function (body) {
+            var status = String(body.status || 'unknown');
+            var db = body.checks && body.checks.database ? body.checks.database : {};
+            var ai = body.checks && body.checks.ai ? body.checks.ai : {};
+            var queue = body.checks && body.checks.queue ? body.checks.queue : {};
+            var detail = 'database ' + (db.ok ? 'ok' : 'unreachable') +
+              ' · queue ' + (queue.queued || 0) + ' queued, ' + (queue.dead || 0) + ' dead' +
+              ' · ai ' + (ai.configured ? 'configured' : 'not configured');
+            setBadge(status === 'ok' ? 'ok' : status === 'error' ? 'offline' : 'degraded',
+              status === 'ok' ? 'Running' : status === 'degraded' ? 'Running (degraded)' : 'Running with errors',
+              detail);
+          })
+          .catch(function () {
+            setBadge('ok', 'Running', 'The server answered, but its status cannot be read from this file. Open the dashboard.');
+          });
+      });
+    }
+
+    /* ------------------------------------------------------ hosted URL */
+    function loadRemote() {
+      var saved = '';
+      try { saved = window.localStorage.getItem(STORAGE_KEY) || ''; } catch (error) { saved = ''; }
+      $('remoteUrl').value = saved;
+      $('remoteHint').textContent = saved ? 'Saved: ' + saved : 'Saved: nothing yet';
+    }
+
+    function saveRemote() {
+      var value = $('remoteUrl').value.trim().replace(/\/+$/, '');
+      if (!value) { toast('Paste an address first.'); return; }
+      if (!/^https?:\/\//i.test(value)) value = 'https://' + value;
+      try { window.localStorage.setItem(STORAGE_KEY, value); } catch (error) { /* private mode */ }
+      $('remoteUrl').value = value;
+      $('remoteHint').textContent = 'Saved: ' + value;
+      toast('Address saved in this browser.');
+    }
+
+    /* ----------------------------------------------------------- wiring */
+    $('recheck').addEventListener('click', probe);
+    $('remoteSave').addEventListener('click', saveRemote);
+    $('remoteClear').addEventListener('click', function () {
+      try { window.localStorage.removeItem(STORAGE_KEY); } catch (error) { /* ignore */ }
+      $('remoteUrl').value = '';
+      $('remoteHint').textContent = 'Saved: nothing yet';
+      toast('Cleared.');
+    });
+    $('remoteOpen').addEventListener('click', function () {
+      var value = $('remoteUrl').value.trim();
+      if (!value) { toast('Paste an address first.'); return; }
+      if (!/^https?:\/\//i.test(value)) value = 'https://' + value;
+      saveRemote();
+      window.location.href = value;
+    });
+
+    $('clock').textContent = new Date().toLocaleString();
+    loadRemote();
+    probe();
+    window.setInterval(probe, 20000);
+  })();
+</script>
+</body>
+</html>

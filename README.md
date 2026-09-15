@@ -56,6 +56,28 @@ onboarding wizard. `npm run agent` is the single command: it builds the app,
 starts Next.js on `0.0.0.0:3000`, applies database migrations, and runs the queue
 worker and cron loop inside the same process (PGlite mode).
 
+### Prefer double-clicking to typing?
+
+Three start files live in the project root. Each one checks Node.js, creates
+`.env` on the first run, installs dependencies once, starts the web app together
+with the agents, waits until the server answers, and then opens your browser:
+
+| System | File | Note |
+| --- | --- | --- |
+| Windows | `start-aiba.bat` | Double-click. The server runs in its own window; close it to stop. |
+| macOS | `start-aiba.command` | Double-click (right-click → Open the first time). Ctrl+C in Terminal stops it. |
+| Linux | `start-aiba.sh` | `chmod +x start-aiba.sh && ./start-aiba.sh`. |
+
+And for opening the console itself, there is a self-contained browser page —
+no build, no internet, no install:
+
+**`public/aiba-launcher.html`** — double-click the file, or open
+`/aiba-launcher.html` from the running app. It shows whether the server is up
+(and its degraded/ok state), gives one-click buttons for the dashboard, sign-in,
+registration, landing page, status page and API docs, and remembers a hosted
+address (e.g. an Arena preview URL or your own domain) in that browser so you can
+reopen it later with one click. It never stores passwords.
+
 Other entry points:
 
 | Command | What it does |
