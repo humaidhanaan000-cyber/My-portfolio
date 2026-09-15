@@ -1,0 +1,108 @@
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------------ design tokens */
+@theme {
+  --color-ink-50: #f5f7fa;
+  --color-ink-100: #e9edf3;
+  --color-ink-200: #d3dae6;
+  --color-ink-300: #adb9cd;
+  --color-ink-400: #7d8ca6;
+  --color-ink-500: #5a6a86;
+  --color-ink-600: #45536b;
+  --color-ink-700: #364256;
+  --color-ink-800: #232c3b;
+  --color-ink-900: #161d28;
+  --color-ink-950: #0d1219;
+
+  --color-accent-50: #eef7ff;
+  --color-accent-100: #d9edff;
+  --color-accent-200: #bce0ff;
+  --color-accent-300: #8ecdff;
+  --color-accent-400: #59b0ff;
+  --color-accent-500: #2f8ef5;
+  --color-accent-600: #1a6fdb;
+  --color-accent-700: #1758b0;
+  --color-accent-800: #184a8d;
+  --color-accent-900: #193f74;
+
+  --color-signal-positive: #16a34a;
+  --color-signal-warning: #d97706;
+  --color-signal-critical: #dc2626;
+  --color-signal-neutral: #64748b;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* ------------------------------------------------------------------- base */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-ink-50);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-300) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-ink-300);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent-500);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------- utilities */
+@utility grid-lines {
+  background-image:
+    linear-gradient(to right, rgb(35 44 59 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(35 44 59 / 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@utility surface {
+  background-color: white;
+  border: 1px solid var(--color-ink-200);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgb(13 18 25 / 0.04);
+}
+
+@utility surface-dark {
+  background-color: var(--color-ink-900);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 0.75rem;
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@utility live-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@media print {
+  .no-print { display: none !important; }
+}
