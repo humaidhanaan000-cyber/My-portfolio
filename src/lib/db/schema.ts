@@ -11,6 +11,7 @@
  *  - Enum-like columns are `text` + application-level (zod) validation, so that
  *    business vocabulary can evolve without a database migration lock.
  */
+import { sql } from 'drizzle-orm'
 import {
   boolean,
   index,
@@ -1003,7 +1004,15 @@ export const jobs = pgTable(
     index('jobs_poll_idx').on(t.status, t.runAt, t.priority),
     index('jobs_queue_idx').on(t.queue, t.status),
     index('jobs_ws_idx').on(t.workspaceId, t.createdAt),
-    uniqueIndex('jobs_dedupe_uq').on(t.dedupeKey, t.status),
+    // Dedupe only applies to jobs that are still live. A (dedupe_key, status)
+    // unique index would also forbid a second job from being *marked* succeeded,
+    // failed or dead — which dead-lettered completed work in production. The
+    // writer (`enqueue`) checks exactly these two statuses before inserting, and
+    // migration 0001_fix_jobs_dedupe swaps the old index for this one.
+    uniqueIndex('jobs_dedupe_active_uq')
+      .on(t.dedupeKey)
+      .where(sql`${t.status} in ('queued', 'running')`),
+    index('jobs_dedupe_idx').on(t.dedupeKey),
   ],
 )
 
